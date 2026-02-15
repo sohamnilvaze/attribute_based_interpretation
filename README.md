@@ -40,36 +40,32 @@ Additionally, the outputs of ABI can be easily used for other downstream tasks b
 
 ## Particle-Based Knowledge Probing
 
-...
+This knowledge probing method uses the idea of "crowd intelligence", in which simple independent agents/particles produces behaviors that are superior to those of individual agents, aiming to extract from the model what it knowns about an entity, even when the model seems to refuse a direct answer.
 
-I was thinking about something in the direction of “crowd intelligence”, trying to ellicit the knowledge from the LLM in a very indirect way and asking multiple times. 
+In order to perform that, it instantiates several "particles" (each one defined by a simple state, its current estimate of the attributes) that are "simulated" over time (repitedly trying to refine their own estimates) aiming to achieve some "consensus" (the average or majority vote of the entire set of particles).
 
 Pseudo code:
 
 ```
-Inputs = entity_name: str, n: int, m: int, attribute_names: List[str]
-for n iterations
-    for m agents (their first estiamte initialized randomly, uniformly over the scale space)
-        calculate centroid of estimates (or maybe an independent centroid for each agent, with the nearest)
-        ask each agent to estimate the attribtes, based on his last estimate and the centroid
+Inputs = entity_name: str, number_of_iterations: int, number_of_particles: int, attribute_names: List[str]
+internal variables = state_of_each_particle: List[Dict[str, float]], type_of_each_particle: List[Type[ParticleType]]
+
+for number_of_iterations iterations:
+    for number_of_particles particles: (their first estimate initialized randomly, uniformly over the scale space)
+        ask each agent to estimate the attribtes, passing based on its last estimate and the centroid; mapping output-to-attribute
+    calculate centroid of estimates (or maybe an independent centroid for each agent, with the nearest)
+analize convergence, determine final estimate
 Outputs = attribute_values: List[float]
 ```
 
-The mapping output-to-attribute is the only architecture-depandent component of ABI.
-* For language models, just ask
-* For text to image model... generate and measure with clip? Still undefined... see TODO number 3...
-
-...the end result...
-
-
-
-...
+The mapping output-to-attribute is the only architecture-dependent component of ABI. It abstracts the exact prompting and output interpretation that is needed for each architecture. The mapping method is defined by the class ParticleType, that performs all communication with the actual underlying models. Currently, we have the following mapping methods:
+* For language models, just ask and postprocess the text output.
+* For text to image model... we are not sure yet... See the TODO list...
 
 # Experimentation methodology
 
 
 We focus on **interpretable scalar attributes** extracted from the outputs of natural language small foundation model
-
 
 From now on I will refer to “task” as what we are trying to understand from the LLM.
 It does NOT refer to *what you have to do as researcher*, like what is being described here.
@@ -92,28 +88,28 @@ We welcome contrbutions and pull requests :)
 
 Specific work packages:
 
-[ x ] Choose the LLM, run it locally
+- [x] Choose the LLM, run it locally
 
-[ x ] Define 2 very simple tasks: (1) the brad pitt task described above (2) a similar task about Cameron Ridgewell (this person doesnt exist, so it gives us a glimpse of what will the LLM do once we unlearn Brad Pitt). Step 1 and 2 of ABI can be fully hardcoded.
+- [x] Define 2 very simple tasks: (1) the brad pitt task described above (2) a similar task about Cameron Ridgewell (this person doesnt exist, so it gives us a glimpse of what will the LLM do once we unlearn Brad Pitt). Step 1 and 2 of ABI can be fully hardcoded.
 
-[ x ] Implement the two baseline knowledge probing methods
+- [x] Implement the two baseline knowledge probing methods
 
-[ ] Implement Particle-Based Knowledge Probing, with the "mapping output-to-attribute" as a clearly separated function/class, and currently implemented only for language models (which is trivially simple, and requires at most proper prompting and some output filtering)
+- [ ] Implement Particle-Based Knowledge Probing, with the "mapping output-to-attribute" as a clearly separated function/class, and currently implemented only for language models (which is trivially simple, and requires at most proper prompting and some output filtering)
 
-[ ] See if we get any interesting results
+- [ ] See if we get any interesting results
   * Just observe the trajectory of the many particles to see if there is any distinguishable pattern (converges, oscilates, etc)
   * See if the final centroid concides with the actual attribute of that entity
   * When prompted with the additional information of these attributes, does the model "recover the memory" about the entity?
 
-[ ] Design and implement the "mapping output-to-attribute" for text-to-image models
-  * maybe substitute the direct estimate of attributes by predicting an image and then seeing its similarity with the target usign CLIP? This this case maybe would make more sense to just go slowly building a estimation of the "atributes -> CLIP" function?
-  * or maybe identifying (some svd dimentionallity reduction style) which directions in the vector space correlate most with the attributes?
+- [ ] Design and implement the "mapping output-to-attribute" for text-to-image models
+  * Maybe substitute the direct estimate of attributes by predicting an image and then seeing its similarity with the target usign CLIP? This this case maybe would make more sense to just go slowly building a estimation of the "atributes -> CLIP" function?
+  * Or maybe identifying (some svd dimentionallity reduction style) which directions in the vector space correlate most with the attributes?
 
-[ ] Repeat evaluation using Vision-Unlearning basic testbed (no need to define new tasks or finetune models, this is already provided by the lib)
+- [ ] Repeat evaluation using Vision-Unlearning basic testbed (no need to define new tasks or finetune models, this is already provided by the lib)
 
-[ ] Analyze the results more carefully, publish paper
+- [ ] Analyze the results more carefully, publish paper
 
-[ ] Automate step 1 and 2 of the method
+- [ ] Automate step 1 and 2 of the method
 
 
 
