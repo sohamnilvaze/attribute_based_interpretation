@@ -6,7 +6,9 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Dict
+from particle_types import LanguageModelParticle
 
+model = "qwen1.8"
 
 # =========================
 # Prompt
@@ -92,13 +94,15 @@ class RepeatedMultipleParticles:
         n_particles: int,
         n_runs: int,
         attributes: List[str],
-        entity_names: Dict[str, str]
+        entity_names: Dict[str, str],
+        particle_type
     ):
         self.n_particles = n_particles
         self.n_runs = n_runs
         self.attributes = attributes
         self.entity_names = entity_names
         self.analysis_res = {}
+        self.particle_type = particle_type
 
     def run(self, entity_name: str, label: str):
         particle = Particle(self.attributes, self.n_particles)
@@ -122,25 +126,37 @@ class RepeatedMultipleParticles:
             new_particles = []
 
             for p in particle.particles:
-                prompt = particle_update_prompt(entity_name, p, centroid)
-                output = query_llm(
-                    prompt,
-                    tag=f"method2_{label}_step{step}"
+                # prompt = particle_update_prompt(entity_name, p, centroid)
+                # output = query_llm(
+                #     prompt,
+                #     tag=f"method2_{label}_step{step}"
+                # )
+
+                # parsed = safe_parse_json(output)
+
+                memory = p if step > 0 else None
+
+                raw_output = self.particle_type.query(
+                    entity_name,p,centroid,memory = memory
                 )
 
-                parsed = safe_parse_json(output)
+                # if parsed:
+                #     updated = {}
+                #     for k in p.keys():
+                #         try:
+                #             v = float(parsed[k])
+                #             updated[k] = min(max(v, 0.0), 1.0)
+                #         except:
+                #             updated[k] = p[k]
+                #     new_particles.append(updated)
+                # else:
+                #     new_particles.append(p)
+                updated_particle = self.particle_type.map_output_to_attributes(
+                    raw_output,
+                    p
+                )
 
-                if parsed:
-                    updated = {}
-                    for k in p.keys():
-                        try:
-                            v = float(parsed[k])
-                            updated[k] = min(max(v, 0.0), 1.0)
-                        except:
-                            updated[k] = p[k]
-                    new_particles.append(updated)
-                else:
-                    new_particles.append(p)
+                new_particles.append(updated_particle)
 
             particle.update_particles(new_particles)
 
@@ -177,6 +193,48 @@ class RepeatedMultipleParticles:
             self.analysis_res[label] = summarize(traj)
 
         print(json.dumps(self.analysis_res, indent=2))
+    
+    def summarize_all(self):
+        def summarize(traj, epsilon=0.01, patience=3):
+            centroids = [step["centroid"] for step in traj]
+            result = {}
+
+            for attr in centroids[0].keys():
+                values = [c[attr] for c in centroids]
+
+                # Stepwise differences
+                diffs = np.diff(values)
+                stepwise_change = np.abs(diffs)
+
+                # Convergence detection
+                converged_step = None
+                stable_count = 0
+                for i, change in enumerate(stepwise_change):
+                    if change < epsilon:
+                        stable_count += 1
+                        if stable_count >= patience:
+                            converged_step = i
+                            break
+                    else:
+                        stable_count = 0
+
+                result[attr] = {
+                    "initial_value": values[0],
+                    "final_value": values[-1],
+                    "delta_total": values[-1] - values[0],
+                    "std_over_time": float(np.std(values)),
+                    "mean_stepwise_change": float(np.mean(stepwise_change)) if len(stepwise_change) > 0 else 0.0,
+                    "converged_step": converged_step,
+                    "stability_score": float(1 / (1 + np.mean(stepwise_change))) if len(stepwise_change) > 0 else 1.0
+                }
+
+            return result
+        
+        for label in self.entity_names.keys():
+            print(f"Summarizing for {label}")
+            with open(f"../data/trajectory_{label}.json") as f:
+                traj = json.load(f)
+                print(summarize(traj))
 
     # =========================
     # Plots
@@ -193,6 +251,7 @@ class RepeatedMultipleParticles:
             plt.ylabel("Variance")
             plt.legend()
             plt.tight_layout()
+            plt.savefig(f"../{model}_{label}_variances2.png")
             plt.show()
 
     def plot_centroid(self):
@@ -207,6 +266,7 @@ class RepeatedMultipleParticles:
             plt.ylim(0, 1)
             plt.legend()
             plt.tight_layout()
+            plt.savefig(f"../{model}_{label}_centroid_trajectory2.png")
             plt.show()
 
     def plot_final_particles(self):
@@ -226,6 +286,7 @@ class RepeatedMultipleParticles:
 
             plt.suptitle(f"Final particle distributions ({label})")
             plt.tight_layout()
+            plt.savefig(f"../{model}_{label}_final_particle_dist2.png")
             plt.show()
 
 
@@ -236,12 +297,20 @@ entities = {
 
 attrs = ["skin_color", "profession_actor", "age"]
 
+particle_type = LanguageModelParticle()
+
 exp = RepeatedMultipleParticles(
-    n_particles=1,
-    n_runs=1,
+    n_particles=10,
+    n_runs=10,
     attributes=attrs,
-    entity_names=entities
+    entity_names=entities,
+    particle_type=particle_type
 )
+    
 
 exp.run_method()
 exp.analyze()
+exp.plot_centroid()
+exp.plot_final_particles()
+exp.plot_variance()
+exp.summarize_all()
