@@ -212,6 +212,49 @@ class ReflectiveCrowdExperiment:
             plt.tight_layout()
             plt.savefig(f"../{model}_{label}_variance3.png")
             plt.show()
+    
+    def plot_particle_scatter_grid(self, x_attr="skin_color", y_attr="age"):
+
+        for label in self.entity_names.keys():
+
+            with open(f"../data/trajectory3_{label}.json") as f:
+                traj = json.load(f)
+
+            n_steps = len(traj)
+
+            cols = 5
+            rows = int(np.ceil(n_steps / cols))
+
+            fig, axes = plt.subplots(rows, cols, figsize=(4*cols, 4*rows))
+            axes = axes.flatten()
+
+            for i, step in enumerate(traj):
+
+                particles = step["particles"]
+
+                x = [p[x_attr] for p in particles]
+                y = [p[y_attr] for p in particles]
+
+                axes[i].scatter(x, y)
+
+                axes[i].set_title(f"Step {step['step']}")
+                axes[i].set_xlabel(x_attr)
+                axes[i].set_ylabel(y_attr)
+
+                axes[i].set_xlim(0,1)
+                axes[i].set_ylim(0,1)
+
+            # hide unused axes
+            for j in range(i+1, len(axes)):
+                axes[j].axis("off")
+
+            fig.suptitle(f"Particle Distribution Over Time ({label})", fontsize=16)
+
+            plt.tight_layout()
+
+            plt.savefig(f"plots/{model}_{label}_particle_scatter_grid.png")
+
+            plt.show()
 
 entities = {
     "real": "Brad Pitt",
@@ -230,7 +273,8 @@ exp3 = ReflectiveCrowdExperiment(
     particle_type=particle_type
 )
 
-exp3.run_method()
-exp3.plot_centroid()
-exp3.plot_variance()
-exp3.summarize_all()
+# exp3.run_method()
+# exp3.plot_centroid()
+# exp3.plot_variance()
+exp3.plot_particle_scatter_grid()
+# exp3.summarize_all()
